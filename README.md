@@ -1,0 +1,2 @@
+# decrypt.sh
+openssl decrypter
