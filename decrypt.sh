@@ -1,7 +1,7 @@
 #!/bin/bash
-#decrypt.sh v0.1a
+#decrypt.sh v0.1
 #By TAPE
-#Last edit 28-07-2018 20:00
+#Last edit 29-07-2018 23:00
 VERS=$(sed -n 2p $0 | awk '{print $2}')    #Version information
 LED=$(sed -n 4p $0 | awk '{print $3 " " $4}') #Date of last edit to script
 #openssl bruteforcer
@@ -13,6 +13,7 @@ LED=$(sed -n 4p $0 | awk '{print $3 " " $4}') #Date of last edit to script
 STD=$(echo -e "\e[0;0;0m")		#Revert fonts to standard colour/format
 REDN=$(echo -e "\e[0;31m")		#Alter fonts to red normal
 GRNN=$(echo -e "\e[0;32m")		#Alter fonts to green normal
+GRN=$(echo -e "\e[1;32m")		#Alter fonts to green bold
 BLUN=$(echo -e "\e[0;36m")		#Alter fonts to blue normal
 BLU=$(echo -e "\e[1;36m")		#Alter fonts to blue bold
 ORNN=$(echo -e "\e[0;33m")		#Alter fonts to orange normal
@@ -20,33 +21,39 @@ ORNN=$(echo -e "\e[0;33m")		#Alter fonts to orange normal
 #						VARIABLES
 ########################################################################
 BASE64=FALSE
+DEBUG=FALSE
+UNLIKELY=FALSE
 #
 #						HEADERS
 ########################################################################
 f_header() {
-echo $BLUN"   _   _   _   _   _   _   _   _   _   _  
+echo $STD"   _   _   _   _   _   _   _   _   _   _  
   / \ / \ / \ / \ / \ / \ / \ / \ / \ / \ 
- ( d | e | c | r | y | p | t | . | s | h )
-  \_/ \_/ \_/ \_/ \_/ \_/ \_/ \_/ \_/ \_/ 
-  openssl decrypter -- $ORNN By TAPE$BLUN  -- $VERS
-$STD"
+ ($BLUN d$STD |$BLUN e$STD |$BLUN c$STD |$BLUN r$STD |$BLUN y$STD |$BLUN p$STD |$BLUN t$STD |$BLUN .$STD |$BLUN s$STD |$BLUN h$STD )
+  \_/ \_/ \_/ \_/ \_/ \_/ \_/ \_/ \_/ \_/ $BLUN
+  openssl decrypter -- $ORNN By TAPE$BLUN  -- $VERS$STD"
 }
 #
 #						HELP
 ########################################################################
 f_help() {
 f_header
-echo "Basic Usage:
-./$0 -i <input file> -c <cipher> -w <wordlist file>
+echo $BLUN">$STD Help information
+
+Basic Usage:
+bash decrypt.sh -i <input file> 
+bash decrypt.sh -i <input file> -w <wordlist file>
+bash decrypt.sh -i <input file> -c <cipher> -b -w <wordlist file>
 
 Options:
 -b  --  use base64 decoding 
 -c  --  cipher to use
--e  --  examine against expected file type (default: ascii)
--E  --  usage examples
+-f  --  filetype check
 -h  --  this help
+-H  --  extended help
 -i  --  input file
 -o  --  output file (default: decrypted.file)
+-u  --  filter out unlikely filetypes (see extended help)
 -w  --  wordlist file (default: password.lst)
 "
 exit
@@ -54,21 +61,12 @@ exit
 #
 #						USAGE EXAMPLES
 ########################################################################
-f_examples() {
+f_extended_help() {
 f_header
-echo "Usage examples; 
+echo "
+$BLUN>$STD Extended Help 
 
-./$0 -i <input file>
-Script searches for wordlist password.lst and checks input file against all openssl ciphers using found password.lst and outputs 'decrypted.file'
 
-./$0 -i <input file> -c <cipher> 
-Script searches for wordlist 'password.lst' and checks file against given cipher, outputs 'decrypted.file'
-
-./$0 -i <input file> -c <cipher> -b -w <wordlist> -o <filename.tmp> 
-Checks input file with given cipher, with base64 decoding, against given wordlist and outputting to given filename. 
-
-./$0 -i <input file> -c <cipher> -b -e <filetype> -w <wordlist>
-Checks input file with given cipher, with base64 decoding, checks decoded file against given filetype using given wordlist.
 "
 exit
 }
@@ -135,20 +133,19 @@ seed-ofb
 ########################################################################
 f_single_cipher_check() {
 echo $BLUN"[+]$STD Testing file     : $INFILE"
-echo $BLUN"[+]$STD Expected filetype: $EXAMINE"
 echo $BLUN"[+]$STD Using cipher     : $CIPHER"
 while read WORD ; do
 	echo -ne $BLUN"[+]$STD Testing password : $REDN$WORD\r$STD"
 	CCOUNT=$(echo $WORD | wc -c)
-	RESULT=$(openssl enc -$CIPHER -d -in $INFILE -out $OUTFILE -k $WORD 2>&1)
+	RESULT=$(openssl enc -"$CIPHER" -d -in "$INFILE" -out "$OUTFILE" -k "$WORD" 2>&1)
 	if [[ "$RESULT" = "" ]] ; then
-		f_file_examine
+		f_filetype_check
 	else
 		SPACE=$(head -c $CCOUNT < /dev/zero | tr '\0' '\040')
 		echo -ne $BLUN"[+]$STD Testing password : $SPACE\r"
 	fi
 done < $WORDLIST
-echo $REDN"[-]$STD No passwords retrieved for $INFILE"
+echo $REDN"[-]$STD Wordlist exhausted"
 echo
 exit
 }
@@ -157,20 +154,19 @@ exit
 ########################################################################
 f_single_cipher_check_base64() {
 echo $BLUN"[+]$STD Testing file     : $INFILE"
-echo $BLUN"[+]$STD Expected filetype: $EXAMINE"
 echo $BLUN"[+]$STD Using cipher     : $CIPHER with base64 decoding"
 while read WORD ; do
 	echo -ne $BLUN"[+]$STD Testing password : $REDN$WORD\r$STD"
 	CCOUNT=$(echo $WORD | wc -c)
 	RESULT=$(openssl enc -$CIPHER -d -a -in $INFILE -out $OUTFILE -k $WORD 2>&1)
 	if [[ "$RESULT" = "" ]] ; then
-		f_file_examine
+		f_filetype_check
 	else
 		SPACE=$(head -c $CCOUNT < /dev/zero | tr '\0' '\040')
 		echo -ne $BLUN"[+]$STD Testing password : $SPACE\r"
 	fi
 done < $WORDLIST
-echo $REDN"[-]$STD No passwords retrieved for $INFILE"
+echo $REDN"[-]$STD Wordlist exhausted"
 echo
 exit
 }
@@ -178,23 +174,22 @@ exit
 #						Check all algorythms / ciphers with base64
 ########################################################################
 f_all_ciphers_check_base64() {
-echo $ORNN"Testing all ciphers.. get comfortable and maybe start a movie..Dances with Wolves is a good and long one..$STD" 
+echo $ORNN"Testing all ciphers..get comfortable and maybe start a movie..Dances with Wolves is a good and long one..$STD" 
 echo $BLUN"[+]$STD Testing file     : $INFILE"
-echo $BLUN"[+]$STD Expected filetype: $EXAMINE"
 for CIPHER in $(declare -f f_all_ciphers | sed -e 1,2d  -e '$d' -e 's/;//g') ; do
 	echo $BLUN"[+]$STD Using cipher     : $CIPHER with base64 decoding"
 	while read WORD ; do
 		echo -ne $BLUN"[+]$STD Testing password : $REDN$WORD\r$STD"
 		CCOUNT=$(echo $WORD | wc -c)
-		RESULT=$(openssl enc -$CIPHER -d -a -in $INFILE -out $OUTFILE -k $WORD 2>&1)
+		RESULT=$(openssl enc -"$CIPHER" -d -a -in "$INFILE" -out "$OUTFILE" -k "$WORD" 2>&1)
 		if [[ "$RESULT" = "" ]] ; then
-			f_file_examine
+			f_filetype_check
 		else
 			SPACE=$(head -c $CCOUNT < /dev/zero | tr '\0' '\040')
 			echo -ne $BLUN"[+]$STD Testing password : $SPACE\r"
 		fi
 	done < $WORDLIST
-	echo $REDN"[-]$STD No passwords retrieved for $INFILE"
+	echo $REDN"[-]$STD Wordlist exhausted"
 	echo
 done
 exit
@@ -203,9 +198,8 @@ exit
 #						Check all algorythms / ciphers
 ########################################################################
 f_all_ciphers_check() {
-echo $ORNN"Testing all ciphers.. get comfortable and maybe start a movie..Dances with Wolves is a good and long one..$STD" 
+echo $ORNN"Testing all ciphers..get comfortable and maybe start a movie..Dances with Wolves is a good and long one..$STD" 
 echo $BLUN"[+]$STD Testing file     : $INFILE"
-echo $BLUN"[+]$STD Expected typetype: $EXAMINE"
 for CIPHER in $(declare -f f_all_ciphers | sed -e 1,2d  -e '$d' -e 's/;//g') ; do
 	echo $BLUN"[+]$STD Using cipher     : $CIPHER"
 	while read WORD ; do
@@ -213,53 +207,67 @@ for CIPHER in $(declare -f f_all_ciphers | sed -e 1,2d  -e '$d' -e 's/;//g') ; d
 		CCOUNT=$(echo $WORD | wc -c)
 		RESULT=$(openssl enc -$CIPHER -d -in $INFILE -out $OUTFILE -k $WORD 2>&1)
 		if [[ "$RESULT" = "" ]] ; then
-			f_file_examine
+			f_filetype_check
 		else
 			SPACE=$(head -c $CCOUNT < /dev/zero | tr '\0' '\040')
 			echo -ne $BLUN"[+]$STD Testing password : $SPACE\r"
 		fi
 	done < $WORDLIST
-	echo $REDN"[-]$STD No passwords retrieved for $INFILE"
+	echo $REDN"[-]$STD Wordlist exhausted"
 	echo
 done
 exit
 }
 #
-#						Examine decrypted file
+#						List of noted false positive filetypes
 ########################################################################
-f_file_examine() {
-EXAMINE=$(echo "$EXAMINE" | tr '[:upper:]' '[:lower:]')
-#ASCII
-if [ $EXAMINE == ascii ] ; then 
-	FILE_INFO=$(file $OUTFILE | grep -i ascii)
-	if [[ ! "$FILE_INFO" == "" ]] ; then 
-		echo $GRNN"[+]$STD Possible password retrieved: $GRNN$WORD$STD"
-		echo $GRNN"[+]$STD Check $ORNN$OUTFILE$STD to view decrypted content"
-		exit
+f_unlikely() {
+COM*
+COFF*
+data
+DIY*
+DOS*
+MPEG*
+openssl*
+PGP*
+SysEx*
+zlib*
+}
+#
+#						Decrypted filetype check
+########################################################################
+f_filetype_check() {
+FILETYPE=$(file $OUTFILE)
+FILETYPE=$(echo $FILETYPE | sed "s/$OUTFILE: //")
+if [ "$UNLIKELY" == "TRUE" ] ; then
+	if [[ ! "$FILETYPE" = data ]] && [[ ! "$FILETYPE" = openssl* ]] &&  [[ ! "$FILETYPE" = DIY* ]] && [[ ! "$FILETYPE" = DOS* ]] && [[ ! "$FILETYPE" = PGP* ]] && [[ ! "$FILETYPE" = SysEx* ]]  ; then
+		if [[ ! "$FILETYPE" = $TYPE ]] ; then
+			echo $GRN"[+]$STD Possible filetype: $GRNN$FILETYPE$STD found with password $GRN$WORD$STD"
+			echo $ORNN"[+]$STD Copying file to  :$ORNN decrypted.file_$WORD$STD"
+			cp $OUTFILE decrypted.file_$WORD
+		fi
 	fi
-#JPG
-elif [ $EXAMINE == jpg ] ; then 
-	FILE_INFO=$(file $OUTFILE | egrep -i 'jpg|jpeg')
-	if [[ ! $FILE_INFO == "" ]] ; then
-		echo $GRNN"[+]$STD Possible password retrieved: $GRNN$WORD$STD"
-		echo $GRNN"[+]$STD Check $ORNN$OUTFILE$STD to view decrypted content"
-		exit
+elif [ "$UNLIKELY" == "FALSE" ] ; then
+	if [[ ! "$FILETYPE" = data ]] && [[ ! "$FILETYPE" = openssl* ]] ; then
+	echo $GRN"[+]$STD Possible filetype: $GRNN$FILETYPE$STD found with password $GRN$WORD$STD"
+	echo $ORNN"[+]$STD Copying file to  :$ORNN decrypted.file_$WORD$STD"
+	cp $OUTFILE decrypted.file_$WORD
 	fi
 fi
 }
 #
 #						OPTION FUNCTIONS
 ########################################################################
-while getopts ":bc:e:Ehi:o:w:" opt; do
+while getopts ":bc:f:hHi:o:uw:" opt; do
   case $opt in
 	b) BASE64=TRUE ;;
 	c) CIPHER=$OPTARG ;;
-	d) DEBUG=TRUE ;; 
-	e) EXAMINE=$OPTARG ;;
-	E) f_examples ;;
+	d) DEBUG=TRUE ;;
+	H) f_extended_help ;;
 	h) f_help ;;
 	i) INFILE=$OPTARG ;;
 	o) OUTFILE=$OPTARG ;;
+	u) UNLIKELY=TRUE ;;
 	w) WORDLIST=$OPTARG ;;
   esac
 done
@@ -272,8 +280,6 @@ if [ $# -eq 0 ] ; then f_help ; fi
 if [ -z $OUTFILE ] ; then OUTFILE=decrypted.file ; fi
 #
 if [ -z $WORDLIST ] ; then WORDLIST=$(locate password.lst | sed -n 1p) ; fi
-#
-if [ -z $EXAMINE ] ; then EXAMINE=ascii; fi
 #
 if [ "$BASE64" == "TRUE" ] ; then
 	if [ -z $CIPHER ] ; then 
@@ -289,6 +295,6 @@ fi
 #
 #							TO DO
 ########################################################################
-# Currently only provided examine support for ascii / jpg 
-# Need to either include more or make the script check for valid file types on 'decryption'
-# 
+
+
+
