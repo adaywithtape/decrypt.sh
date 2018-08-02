@@ -1,7 +1,7 @@
 #!/bin/bash
-#decrypt.sh v0.2
+#decrypt.sh v0.3
 #By TAPE
-#Last edit 02-08-2018 17:00
+#Last edit 02-08-2018 22:30
 VERS=$(sed -n 2p $0 | awk '{print $2}')    #Version information
 LED=$(sed -n 4p $0 | awk '{print $3 " " $4}') #Date of last edit to script
 #openssl bruteforcer
@@ -47,9 +47,9 @@ bash decrypt.sh -i <input_file> -c <cipher> -b -w <wordlist_file>
 
 Options:
 -b  --  use base64 decoding 
--c  --  cipher to use
+-c  --  cipher to use (if omitted all ciphers will be checked)
 -d  --  debug // show all variables and options used
--f  --  filetype check
+-f  --  filetype check (check for expected filetype.. a tad experimental)
 -h  --  this help
 -H  --  extended help
 -i  --  input file
@@ -66,7 +66,24 @@ f_extended_help() {
 f_header
 echo "$BLUN>$STD Extended Help 
 
-WORK IN PROGRESS"
+-b -- base64 decoding 
+Use when encrypted file is also base64 encoded.
+
+-c -- cipher
+For example 'aes-256-cbc' 
+If omitted then all ciphers listed in the$ORNN f_all_ciphers$STD function will be checked.
+
+-f -- filetype
+Not to be used in conjunction with the -u switch.
+Checks the decrypted file against an expected filetype. Input must be the first word of filetype as per the 'file' tool.
+The script will check this.
+
+-u -- unlikely filetypes
+Not to be used in conjunction with the -f switch.
+Use this switch to filter out filetypes which have been seen to give false positives in tests. 
+Not recommended unless you are confident it wont be one of the filtered filetypes.
+All filtered filetypes can be seen in$ORNN f_unlikely$STD function.
+"
 exit
 }
 #
@@ -138,13 +155,13 @@ while read WORD ; do
 	CCOUNT=$(echo $WORD | wc -c)
 	RESULT=$(openssl enc -"$CIPHER" -d -in "$INFILE" -out "$OUTFILE" -k "$WORD" 2>&1)
 	if [[ "$RESULT" = "" ]] ; then
-		f_filetype_check
+		f_decrypted_file_check
 	else
 		SPACE=$(head -c $CCOUNT < /dev/zero | tr '\0' '\040')
 		echo -ne $BLUN"[+]$STD Testing password : $SPACE\r"
 	fi
 done < $WORDLIST
-echo $REDN"[-]$STD Wordlist exhausted"
+echo $REDN"[!]$STD Wordlist exhausted"
 echo
 exit
 }
@@ -159,13 +176,13 @@ while read WORD ; do
 	CCOUNT=$(echo $WORD | wc -c)
 	RESULT=$(openssl enc -$CIPHER -d -a -in $INFILE -out $OUTFILE -k $WORD 2>&1)
 	if [[ "$RESULT" = "" ]] ; then
-		f_filetype_check
+		f_decrypted_file_check
 	else
 		SPACE=$(head -c $CCOUNT < /dev/zero | tr '\0' '\040')
 		echo -ne $BLUN"[+]$STD Testing password : $SPACE\r"
 	fi
 done < $WORDLIST
-echo $REDN"[-]$STD Wordlist exhausted"
+echo $REDN"[!]$STD Wordlist exhausted"
 echo
 exit
 }
@@ -182,13 +199,13 @@ for CIPHER in $(declare -f f_all_ciphers | sed -e 1,2d  -e '$d' -e 's/;//g') ; d
 		CCOUNT=$(echo $WORD | wc -c)
 		RESULT=$(openssl enc -"$CIPHER" -d -a -in "$INFILE" -out "$OUTFILE" -k "$WORD" 2>&1)
 		if [[ "$RESULT" = "" ]] ; then
-			f_filetype_check
+			f_decrypted_file_check
 		else
 			SPACE=$(head -c $CCOUNT < /dev/zero | tr '\0' '\040')
 			echo -ne $BLUN"[+]$STD Testing password : $SPACE\r"
 		fi
 	done < $WORDLIST
-	echo $REDN"[-]$STD Wordlist exhausted"
+	echo $REDN"[!]$STD Wordlist exhausted"
 	echo
 done
 exit
@@ -206,13 +223,13 @@ for CIPHER in $(declare -f f_all_ciphers | sed -e 1,2d  -e '$d' -e 's/;//g') ; d
 		CCOUNT=$(echo $WORD | wc -c)
 		RESULT=$(openssl enc -$CIPHER -d -in $INFILE -out $OUTFILE -k $WORD 2>&1)
 		if [[ "$RESULT" = "" ]] ; then
-			f_filetype_check
+			f_decrypted_file_check
 		else
 			SPACE=$(head -c $CCOUNT < /dev/zero | tr '\0' '\040')
 			echo -ne $BLUN"[+]$STD Testing password : $SPACE\r"
 		fi
 	done < $WORDLIST
-	echo $REDN"[-]$STD Wordlist exhausted"
+	echo $REDN"[!]$STD Wordlist exhausted"
 	echo
 done
 exit
@@ -294,30 +311,56 @@ UNLIKELY_TYPES='370 64-bit AIN Alpha amd AmigaOS ARC ARJ Bentley/Intergraph Bink
 #
 #						Decrypted filetype check
 ########################################################################
-f_filetype_check() {
-FILETYPE=$(file $OUTFILE | sed "s/$OUTFILE: //")
-FILETYPECHECK=$(echo $FILETYPE | awk '{print $1}')
+f_decrypted_file_check() {
+FILE=$(file $OUTFILE | sed "s/$OUTFILE: //")
+FILECHECK=$(echo $FILE | awk '{print $1}')
+OUTFILENAME=${OUTFILE}_${WORD}
 if [ "$UNLIKELY" == "TRUE" ] ; then
 	for i in $UNLIKELY_TYPES; do 
 		PASS=MAYBE
-		if [[ "$FILETYPECHECK" =~ "$i" ]] ; then 
+		if [[ "$FILECHECK" =~ "$i" ]] ; then 
 			PASS=FALSE
 			break
 		fi
 	done
 	if [ ! "$PASS" == "FALSE" ]; then
-		echo $GRN"[+]$STD Possible filetype: $GRNN$FILETYPE$STD found with password $GRN$WORD$STD"
-		echo $ORNN"[+]$STD Copying file to  :$ORNN decrypted.file_$WORD$STD"
-		cp $OUTFILE decrypted.file_$WORD
+		echo $GRN"[+]$STD Possible filetype: $GRNN$FILE$STD found with password $GRN$WORD$STD"
+		echo -e $ORNN"[+]$STD Copying file to  :$ORNN $OUTFILENAME$STD"
+		cp $OUTFILE "$OUTFILENAME"
 	fi
-elif [ "$UNLIKELY" == "FALSE" ] ; then
-	if [[ ! "$FILETYPE" = data* ]] && [[ ! "$FILETYPE" = openssl* ]] ; then
-	echo $GRN"[+]$STD Possible filetype: $GRNN$FILETYPE$STD found with password $GRN$WORD$STD"
-	echo $ORNN"[+]$STD Copying file to  :$ORNN decrypted.file_$WORD$STD"
-	cp $OUTFILE decrypted.file_$WORD
+elif [[ "$UNLIKELY" == "FALSE" ]] && [[ -z $FILETYPE ]] ; then
+	if [[ ! "$FILE" = data* ]] && [[ ! "$FILE" = openssl* ]] ; then
+	echo $GRN"[+]$STD Possible filetype: $GRNN$FILE$STD found with password $GRN$WORD$STD"
+	echo -e $ORNN"[+]$STD Copying file to  :$ORNN $OUTFILENAME$STD"
+	cp $OUTFILE "$OUTFILENAME"
+	fi
+elif [[ "$UNLIKELY" == "FALSE" ]] && [[ ! -z $FILETYPE ]] ; then
+	if [ "$FILECHECK" == "$FILETYPE" ] ; then 
+		echo $GRN"[+]$STD Possible filetype: $GRNN$FILE$STD found with password $GRN$WORD$STD"
+		echo -e $ORNN"[+]$STD Copying file to  :$ORNN $OUTFILENAME$STD"
+		cp $OUTFILE "$OUTFILENAME"
+		exit
 	fi
 fi
 }
+#
+#						DEBUG INFO
+########################################################################
+f_debug() {
+FILEINFILE=$(file $INFILE | cut -d : -f 2 | sed 's/^.//')
+if [ -z $FILETYPE ] ; then FILETYPE="No filetype specified"; fi
+echo $ORNN"-------------------------------------------------------------$STD"
+echo $GRNN"[+]$STD Encrypted file to process    : $INFILE"
+echo $GRNN"[+]$STD Encrypted file properties    : $FILEINFILE"
+echo $GRNN"[+]$STD Cipher(s) being checked      : $CIPHER"
+echo $GRNN"[+]$STD Base64 decoding              : $BASE64"
+echo $GRNN"[+]$STD Filtering unlikely filetypes : $UNLIKELY" 
+echo $GRNN"[+]$STD Filetype to match            : $FILETYPE"
+echo $GRNN"[+]$STD Wordlist in use              : $WORDLIST"
+echo $GRNN"[+]$STD Output file name             : $OUTFILE"
+echo $ORNN"-------------------------------------------------------------$STD"
+}
+
 #
 #						OPTION FUNCTIONS
 ########################################################################
@@ -343,22 +386,65 @@ if [ $# -eq 0 ] ; then f_help ; fi
 #
 if [ -z $OUTFILE ] ; then OUTFILE=decrypted.file ; fi
 #
-if [ -z $WORDLIST ] ; then WORDLIST=$(locate password.lst | sed -n 1p) ; fi
-#
-if [ "$BASE64" == "TRUE" ] ; then
-	if [ -z $CIPHER ] ; then 
-	f_all_ciphers_check_base64
-	else f_single_cipher_check_base64
-	fi
-elif [ "$BASE64" == "FALSE" ] ; then
-	if [ -z $CIPHER ] ; then 
-	f_all_ciphers_check
-	else f_single_cipher_check
+if [ -z $WORDLIST ] ; then 
+	WORDLIST=$(locate password.lst | sed -n 1p)
+	if [ "$WORDLIST" == "" ] ; then 
+		echo $REDN"[!]$STD No wordlist found. Please specify with$GRNN -w$STD switch"
+		exit
+	elif [ ! -f $WORDLIST ] ; then
+		echo $REDN"[!]$STD Please specify valid wordlist with$GRNN -w$STD switch"
+		exit 
 	fi
 fi
 #
+if [ -z $INFILE ] ; then 
+	echo $REDN"[!]$STD Input file to decrypt must be specified with the$GRNN -i$STD switch"
+	exit
+fi
+#
+FILEBASEINFO=$(file $INFILE | cut -d : -f 2 | sed 's/^.//' | grep -i "base64 encoded")
+if [[ ! "$FILEBASEINFO" == "" ]] && [[ "$BASE64" == "FALSE" ]] ; then 
+	echo $REDN"[!]$STD Encrypted file possibly needs base64 decoding"
+	echo $REDN"[!]$STD Consider using the$GRNN -b$STD switch"
+	sleep 2
+fi
+# Checks on unlikely filetype filtering and expected filetype
+if [[ "$UNLIKELY" == "TRUE" ]] && [[ ! -z $FILETYPE ]] ; then 
+	echo $REDN"[!]$STD Filtering unlikely filetypes cannot be used in conjunction with checking for a specific filetype"
+	echo "Please specify either$GRNN -u$STD or$GRNN -f <filetype>$STD"
+	exit
+elif [[ "$UNLIKELY" == "FALSE" ]] && [[ ! -z $FILETYPE ]] ; then 
+	X=$(file -l | sed 's/^.*: //g' | awk '{print $1}' | grep $FILETYPE)
+	if [ "$X" == "" ] ; then 
+		echo $REDN"[!]$STD Filetype not recognised. Please use first word from 'file' information as string for filetype"
+		exit
+	fi
+fi
+#
+#
+if [ "$BASE64" == "TRUE" ] ; then
+	if [ -z $CIPHER ] ; then
+		CIPHER="All available ciphers"
+		if [ "$DEBUG" == "TRUE" ] ; then f_debug; fi
+		f_all_ciphers_check_base64
+		else 
+		if [ "$DEBUG" == "TRUE" ] ; then f_debug; fi
+		f_single_cipher_check_base64
+	fi
+elif [ "$BASE64" == "FALSE" ] ; then
+	if [ -z $CIPHER ] ; then 
+		CIPHER="All available ciphers" 
+		if [ "$DEBUG" == "TRUE" ] ; then f_debug; fi
+		f_all_ciphers_check
+	else
+	if [ "$DEBUG" == "TRUE" ] ; then f_debug; fi
+	f_single_cipher_check
+	fi
+fi
+#
+#
 #							TO DO
 ########################################################################
-
-
-
+# > Improve on methods to check for specific file type
+# > Improve and expand help information
+# > Improve on methods on types to filter. Switch?
