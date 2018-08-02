@@ -1,7 +1,7 @@
 #!/bin/bash
-#decrypt.sh v0.1
+#decrypt.sh v0.2
 #By TAPE
-#Last edit 29-07-2018 23:00
+#Last edit 02-08-2018 17:00
 VERS=$(sed -n 2p $0 | awk '{print $2}')    #Version information
 LED=$(sed -n 4p $0 | awk '{print $3 " " $4}') #Date of last edit to script
 #openssl bruteforcer
@@ -41,13 +41,14 @@ f_header
 echo $BLUN">$STD Help information
 
 Basic Usage:
-bash decrypt.sh -i <input file> 
-bash decrypt.sh -i <input file> -w <wordlist file>
-bash decrypt.sh -i <input file> -c <cipher> -b -w <wordlist file>
+bash decrypt.sh -i <input_file> 
+bash decrypt.sh -i <input_file> -w <wordlist_file>
+bash decrypt.sh -i <input_file> -c <cipher> -b -w <wordlist_file>
 
 Options:
 -b  --  use base64 decoding 
 -c  --  cipher to use
+-d  --  debug // show all variables and options used
 -f  --  filetype check
 -h  --  this help
 -H  --  extended help
@@ -63,11 +64,9 @@ exit
 ########################################################################
 f_extended_help() {
 f_header
-echo "
-$BLUN>$STD Extended Help 
+echo "$BLUN>$STD Extended Help 
 
-
-"
+WORK IN PROGRESS"
 exit
 }
 #
@@ -219,36 +218,100 @@ done
 exit
 }
 #
-#						List of noted false positive filetypes
+#						Noted false positives 
 ########################################################################
 f_unlikely() {
-COM*
-COFF*
+370
+64-bit
+AIN
+Alpha
+amd
+AmigaOS
+ARC
+ARJ
+Bentley/Intergraph
+Bink
+BS
+byte-swapped
+Clarion
+COM
+Compiled
+COFF
+crunched
 data
-DIY*
-DOS*
-MPEG*
-openssl*
-PGP*
-SysEx*
-zlib*
+disk
+DIY
+DOS
+Dyalog
+executable
+floppy
+frozen
+fsav
+iAPX
+ID
+LANalyzer
+Linux/i386
+little
+locale
+Logitech
+LZH
+MAR
+MIPSEB
+MIPSEL
+MySQL
+MPEG
+MS
+openssl
+PARIX
+packed
+PDP-11
+PGP
+PGP\011Secret
+PostScript
+Quasijarus
+SCO
+shared
+Sky
+SoftQuad
+SYMMETRY
+SVr2
+SVR2
+SVr4
+structured
+SysEx
+TeX
+VAX-order
+very
+WE32000
+XENIX
+YAC
+zlib
 }
+#
+#						List of noted false positive filetypes
+########################################################################
+UNLIKELY_TYPES='370 64-bit AIN Alpha amd AmigaOS ARC ARJ Bentley/Intergraph Bink BS byte-swapped Clarion COM Compiled COFF crunched data disk DIY DOS Dyalog executable floppy frozen fsav iAPX ID LANalyzer Linux/i386 little locale Logitech LZH MAR MIPSEB MIPSEL MySQL MPEG MS openssl PARIX packed PDP-11 PGP PGP\011Secret PostScript Quasijarus SCO shared Sky SoftQuad SYMMETRY SVr2 SVR2 SVr4 structured SysEx TeX VAX-order very WE32000 XENIX YAC zlib'
 #
 #						Decrypted filetype check
 ########################################################################
 f_filetype_check() {
-FILETYPE=$(file $OUTFILE)
-FILETYPE=$(echo $FILETYPE | sed "s/$OUTFILE: //")
+FILETYPE=$(file $OUTFILE | sed "s/$OUTFILE: //")
+FILETYPECHECK=$(echo $FILETYPE | awk '{print $1}')
 if [ "$UNLIKELY" == "TRUE" ] ; then
-	if [[ ! "$FILETYPE" = data ]] && [[ ! "$FILETYPE" = openssl* ]] &&  [[ ! "$FILETYPE" = DIY* ]] && [[ ! "$FILETYPE" = DOS* ]] && [[ ! "$FILETYPE" = PGP* ]] && [[ ! "$FILETYPE" = SysEx* ]]  ; then
-		if [[ ! "$FILETYPE" = $TYPE ]] ; then
-			echo $GRN"[+]$STD Possible filetype: $GRNN$FILETYPE$STD found with password $GRN$WORD$STD"
-			echo $ORNN"[+]$STD Copying file to  :$ORNN decrypted.file_$WORD$STD"
-			cp $OUTFILE decrypted.file_$WORD
+	for i in $UNLIKELY_TYPES; do 
+		PASS=MAYBE
+		if [[ "$FILETYPECHECK" =~ "$i" ]] ; then 
+			PASS=FALSE
+			break
 		fi
+	done
+	if [ ! "$PASS" == "FALSE" ]; then
+		echo $GRN"[+]$STD Possible filetype: $GRNN$FILETYPE$STD found with password $GRN$WORD$STD"
+		echo $ORNN"[+]$STD Copying file to  :$ORNN decrypted.file_$WORD$STD"
+		cp $OUTFILE decrypted.file_$WORD
 	fi
 elif [ "$UNLIKELY" == "FALSE" ] ; then
-	if [[ ! "$FILETYPE" = data ]] && [[ ! "$FILETYPE" = openssl* ]] ; then
+	if [[ ! "$FILETYPE" = data* ]] && [[ ! "$FILETYPE" = openssl* ]] ; then
 	echo $GRN"[+]$STD Possible filetype: $GRNN$FILETYPE$STD found with password $GRN$WORD$STD"
 	echo $ORNN"[+]$STD Copying file to  :$ORNN decrypted.file_$WORD$STD"
 	cp $OUTFILE decrypted.file_$WORD
@@ -258,11 +321,12 @@ fi
 #
 #						OPTION FUNCTIONS
 ########################################################################
-while getopts ":bc:f:hHi:o:uw:" opt; do
+while getopts ":bc:df:hHi:o:uw:" opt; do
   case $opt in
 	b) BASE64=TRUE ;;
 	c) CIPHER=$OPTARG ;;
 	d) DEBUG=TRUE ;;
+	f) FILETYPE=$OPTARG ;;
 	H) f_extended_help ;;
 	h) f_help ;;
 	i) INFILE=$OPTARG ;;
